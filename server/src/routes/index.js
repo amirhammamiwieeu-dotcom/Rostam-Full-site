@@ -11,9 +11,13 @@ import orderRoutes from './order.routes.js'
 import paymentRoutes from './payment.routes.js'
 import commentRoutes from './comment.routes.js'
 import adminRoutes from './admin.routes.js'
+import aiRoutes from './ai.routes.js'
+import uploadRoutes from './upload.routes.js'
+import analyticsRoutes from './analytics.routes.js'
 
 const router = Router()
 
+// Health
 router.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -24,6 +28,7 @@ router.get('/health', (req, res) => {
   })
 })
 
+// Routes
 router.use('/auth', authRoutes)
 router.use('/products', productRoutes)
 router.use('/categories', categoryRoutes)
@@ -36,5 +41,8 @@ router.use('/orders', orderRoutes)
 router.use('/payment', paymentRoutes)
 router.use('/comments', commentRoutes)
 router.use('/admin', adminRoutes)
+router.use('/ai', aiRoutes)
+router.use('/upload', uploadRoutes)
+router.use('/analytics', analyticsRoutes)
 
 export default router
