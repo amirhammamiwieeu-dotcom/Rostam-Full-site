@@ -1,3 +1,5 @@
 export { welcomeEmail } from './emails/welcome.js'
 export { resetPasswordEmail } from './emails/reset-password.js'
 export { verifyEmailTemplate } from './emails/verify-email.js'
+export { orderConfirmationEmail } from './emails/order-confirmation.js'
+export { orderShippedEmail } from './emails/order-shipped.js'
