@@ -3,12 +3,14 @@ import authRoutes from './auth.routes.js'
 import productRoutes from './product.routes.js'
 import categoryRoutes from './category.routes.js'
 import brandRoutes from './brand.routes.js'
+import cartRoutes from './cart.routes.js'
+import wishlistRoutes from './wishlist.routes.js'
+import compareRoutes from './compare.routes.js'
+import couponRoutes from './coupon.routes.js'
 
 const router = Router()
 
-// ============================================================
-// Health check
-// ============================================================
+// Health
 router.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -19,17 +21,17 @@ router.get('/health', (req, res) => {
   })
 })
 
-// ============================================================
 // Routes
-// ============================================================
 router.use('/auth', authRoutes)
 router.use('/products', productRoutes)
 router.use('/categories', categoryRoutes)
 router.use('/brands', brandRoutes)
+router.use('/cart', cartRoutes)
+router.use('/wishlist', wishlistRoutes)
+router.use('/compare', compareRoutes)
+router.use('/coupons', couponRoutes)
 
 // Coming next:
-// router.use('/cart', cartRoutes)
-// router.use('/wishlist', wishlistRoutes)
 // router.use('/orders', orderRoutes)
 // router.use('/payment', paymentRoutes)
 // router.use('/comments', commentRoutes)
