@@ -6,6 +6,7 @@ import {
   chat,
   recommendProducts,
   translateText,
+  compareProducts,
 } from '../services/ai.service.js'
 
 export const generateProductDescription = asyncHandler(async (req, res) => {
@@ -32,4 +33,9 @@ export const recommendCtrl = asyncHandler(async (req, res) => {
 export const translateCtrl = asyncHandler(async (req, res) => {
   const result = await translateText(req.body)
   return ApiResponse.success(res, result, 'Translation')
+})
+
+export const compareCtrl = asyncHandler(async (req, res) => {
+  const result = await compareProducts(req.body)
+  return ApiResponse.success(res, result, 'Comparison generated')
 })

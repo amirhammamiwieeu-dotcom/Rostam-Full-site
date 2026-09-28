@@ -1,6 +1,17 @@
 import { z } from 'zod'
 
 // ============================================================
+// Helper: empty string → undefined
+// ============================================================
+const emptyToUndefined = (val) =>
+  val === '' || val === null || val === undefined ? undefined : val
+
+const optionalUrl = z.preprocess(
+  emptyToUndefined,
+  z.string().url('Invalid url').optional()
+)
+
+// ============================================================
 // List/Query
 // ============================================================
 export const productQuerySchema = z.object({
@@ -25,15 +36,15 @@ export const productQuerySchema = z.object({
 export const createProductSchema = z.object({
   title: z.string().min(3).max(255),
   slug: z.string().min(3).max(255).optional(),
-  sku: z.string().optional(),
-  barcode: z.string().optional(),
-  description: z.string().optional(),
-  short_description: z.string().max(500).optional(),
+  sku: z.preprocess(emptyToUndefined, z.string().optional()),
+  barcode: z.preprocess(emptyToUndefined, z.string().optional()),
+  description: z.preprocess(emptyToUndefined, z.string().optional()),
+  short_description: z.preprocess(emptyToUndefined, z.string().max(500).optional()),
   highlights: z.array(z.string()).optional(),
 
   price: z.coerce.number().min(0),
-  old_price: z.coerce.number().min(0).optional(),
-  cost_price: z.coerce.number().min(0).optional(),
+  old_price: z.preprocess(emptyToUndefined, z.coerce.number().min(0).optional()),
+  cost_price: z.preprocess(emptyToUndefined, z.coerce.number().min(0).optional()),
   discount: z.coerce.number().int().min(0).max(100).optional(),
 
   stock: z.coerce.number().int().min(0).default(0),
@@ -41,13 +52,23 @@ export const createProductSchema = z.object({
   track_inventory: z.boolean().default(true),
   allow_backorder: z.boolean().default(false),
 
-  category_id: z.string().uuid().optional().nullable(),
-  brand_id: z.string().uuid().optional().nullable(),
-  seller_id: z.string().uuid().optional().nullable(),
+  category_id: z.preprocess(
+    emptyToUndefined,
+    z.string().uuid().optional().nullable()
+  ),
+  brand_id: z.preprocess(
+    emptyToUndefined,
+    z.string().uuid().optional().nullable()
+  ),
+  brand_name: z.preprocess(emptyToUndefined, z.string().optional().nullable()),
+  seller_id: z.preprocess(
+    emptyToUndefined,
+    z.string().uuid().optional().nullable()
+  ),
 
-  thumbnail: z.string().url().optional(),
+  thumbnail: optionalUrl,
   images: z.array(z.string().url()).optional(),
-  video_url: z.string().url().optional(),
+  video_url: optionalUrl,
 
   features: z.array(z.string()).optional(),
   specifications: z.record(z.any()).optional(),
@@ -58,16 +79,16 @@ export const createProductSchema = z.object({
   is_prime: z.boolean().default(false),
   status: z.enum(['draft', 'published', 'archived']).default('published'),
 
-  meta_title: z.string().max(255).optional(),
-  meta_description: z.string().max(500).optional(),
-  meta_keywords: z.string().optional(),
+  meta_title: z.preprocess(emptyToUndefined, z.string().max(255).optional()),
+  meta_description: z.preprocess(emptyToUndefined, z.string().max(500).optional()),
+  meta_keywords: z.preprocess(emptyToUndefined, z.string().optional()),
 
-  weight: z.coerce.number().min(0).optional(),
+  weight: z.preprocess(emptyToUndefined, z.coerce.number().min(0).optional()),
   dimensions: z.record(z.any()).optional(),
   free_shipping: z.boolean().default(false),
 
-  tax_class: z.string().optional(),
-  tax_rate: z.coerce.number().min(0).optional(),
+  tax_class: z.preprocess(emptyToUndefined, z.string().optional()),
+  tax_rate: z.preprocess(emptyToUndefined, z.coerce.number().min(0).optional()),
 })
 
 // ============================================================

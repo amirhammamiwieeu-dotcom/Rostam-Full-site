@@ -5,6 +5,7 @@ import {
   handleWebhook,
   getPaymentStatus,
   createRefund,
+  verifySession,
 } from '../services/payment.service.js'
 import { stripe } from '../config/stripe.js'
 
@@ -37,8 +38,14 @@ export const webhook = asyncHandler(async (req, res) => {
   res.json({ received: true })
 })
 
-// Admin
 export const refund = asyncHandler(async (req, res) => {
   const result = await createRefund(req.params.orderId, req.body, req.user.id)
   return ApiResponse.success(res, { refund: result }, 'Refund created')
+})
+
+// 🆕 Verify session (polling)
+export const verifySessionCtrl = asyncHandler(async (req, res) => {
+  const { session_id } = req.body
+  const result = await verifySession(session_id, req.user.id)
+  return ApiResponse.success(res, result, 'Session verified')
 })

@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import {
   list,
+  mainList,
+  withChildren,
   getBySlug,
   getOne,
   create,
@@ -20,6 +22,8 @@ const router = Router()
 
 // Public
 router.get('/', validateQuery(categoryQuerySchema), list)
+router.get('/main', mainList)                       // 🆕 Main + children
+router.get('/:slug/with-children', withChildren)    // 🆕 Category + children
 router.get('/slug/:slug', getBySlug)
 router.get('/:id', getOne)
 

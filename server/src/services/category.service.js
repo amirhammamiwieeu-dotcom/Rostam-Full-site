@@ -31,7 +31,6 @@ export const getCategories = async ({ parent, isActive = true, isFeatured, tree 
 
   if (!tree) return data || []
 
-  // Build tree
   return buildTree(data || [])
 }
 
@@ -45,6 +44,75 @@ const buildTree = (categories, parentId = null) => {
       ...c,
       children: buildTree(categories, c.id),
     }))
+}
+
+/**
+ * 🆕 Get main categories only (parent_id = null) with their children
+ */
+export const getMainCategories = async () => {
+  // Get all active categories
+  const { data: all, error } = await supabaseAdmin
+    .from('categories')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+
+  if (error) throw ApiError.badRequest(error.message)
+
+  // Filter main + build children
+  const mainCategories = (all || []).filter((c) => !c.parent_id)
+
+  return mainCategories.map((main) => ({
+    ...main,
+    children: (all || [])
+      .filter((c) => c.parent_id === main.id)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+  }))
+}
+
+/**
+ * 🆕 Get category by slug + its children (for /category/:slug page)
+ */
+export const getCategoryWithChildren = async (slug) => {
+  // Find the category
+  const { data: category, error } = await supabaseAdmin
+    .from('categories')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (error) throw ApiError.badRequest(error.message)
+  if (!category) throw ApiError.notFound('Category not found')
+
+  // Get children (subcategories)
+  const { data: children } = await supabaseAdmin
+    .from('categories')
+    .select('*')
+    .eq('parent_id', category.id)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+
+  // If this category itself has a parent, get its siblings too
+  let siblings = []
+  if (category.parent_id) {
+    const { data: sib } = await supabaseAdmin
+      .from('categories')
+      .select('*')
+      .eq('parent_id', category.parent_id)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+    siblings = sib || []
+  }
+
+  return {
+    category,
+    children: children || [],
+    siblings,
+    parent: category.parent_id
+      ? await getCategoryById(category.parent_id)
+      : null,
+  }
 }
 
 /**
@@ -115,7 +183,6 @@ export const updateCategory = async (id, data) => {
  * Delete category (admin)
  */
 export const deleteCategory = async (id) => {
-  // Check for subcategories
   const { count } = await supabaseAdmin
     .from('categories')
     .select('*', { count: 'exact', head: true })

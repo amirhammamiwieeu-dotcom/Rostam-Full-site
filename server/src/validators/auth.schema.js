@@ -71,3 +71,10 @@ export const changePasswordSchema = z.object({
     .regex(/[a-z]/, 'Must contain lowercase')
     .regex(/[0-9]/, 'Must contain number'),
 })
+
+export const resendConfirmationSchema = z.object({
+  email: z
+    .string({ required_error: 'Email is required' })
+    .email('Invalid email address')
+    .toLowerCase(),
+})

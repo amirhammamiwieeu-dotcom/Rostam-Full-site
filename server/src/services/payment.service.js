@@ -27,7 +27,6 @@ export const createCheckoutSession = async (userId, orderId) => {
     quantity: item.quantity,
   }))
 
-  // Add shipping and tax as line items
   if (order.shipping_cost > 0) {
     lineItems.push({
       price_data: {
@@ -55,23 +54,15 @@ export const createCheckoutSession = async (userId, orderId) => {
     payment_method_types: ['card'],
     line_items: lineItems,
     customer_email: order.customer_email,
-    success_url: `${process.env.CLIENT_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.CLIENT_URL}/checkout/cancel?order_id=${order.id}`,
+    success_url: `${process.env.CLIENT_URL}/order-success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.CLIENT_URL}/checkout?order_id=${order.id}&cancelled=true`,
     metadata: {
       order_id: order.id,
       order_number: order.order_number,
       user_id: userId,
     },
-    ...(order.discount > 0 && {
-      discounts: [
-        {
-          coupon: await createStripeCoupon(order.discount),
-        },
-      ],
-    }),
   })
 
-  // Save session id
   await supabaseAdmin
     .from('orders')
     .update({
@@ -85,40 +76,101 @@ export const createCheckoutSession = async (userId, orderId) => {
 }
 
 /**
- * Create a one-time Stripe coupon for a fixed discount
+ * 🆕 Verify Stripe session manually (polling — no webhook needed)
  */
-const createStripeCoupon = async (amount) => {
-  const coupon = await stripe.coupons.create({
-    amount_off: Math.round(amount * 100),
-    currency: 'usd',
-    duration: 'once',
-  })
-  return coupon.id
+export const verifySession = async (sessionId, userId) => {
+  if (!sessionId) throw ApiError.badRequest('Session ID required')
+
+  let session
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId)
+  } catch (err) {
+    throw ApiError.badRequest('Invalid session ID')
+  }
+
+  const orderId = session.metadata?.order_id
+  if (!orderId) throw ApiError.badRequest('Order not found in session')
+
+  // Ensure this order belongs to the user
+  const { data: order, error: orderErr } = await supabaseAdmin
+    .from('orders')
+    .select('id, user_id, payment_status, order_number, customer_email, customer_name, total, subtotal, discount, shipping_cost, tax')
+    .eq('id', orderId)
+    .maybeSingle()
+
+  if (orderErr || !order) throw ApiError.notFound('Order not found')
+  if (order.user_id !== userId) throw ApiError.forbidden('Not your order')
+
+  // If already paid, just return
+  if (order.payment_status === 'paid') {
+    return { paid: true, status: 'paid', order }
+  }
+
+  // Check Stripe status
+  const isPaid = session.payment_status === 'paid'
+
+  if (isPaid) {
+    // Mark order as paid
+    const { data: updatedOrder } = await supabaseAdmin
+      .from('orders')
+      .update({
+        status: 'confirmed',
+        payment_status: 'paid',
+        fulfillment_status: 'unfulfilled',
+        paid_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', orderId)
+      .select()
+      .single()
+
+    // Record payment
+    await supabaseAdmin.from('payments').insert({
+      order_id: orderId,
+      user_id: userId,
+      amount: session.amount_total / 100,
+      currency: (session.currency || 'usd').toUpperCase(),
+      provider: 'stripe',
+      provider_payment_id: session.payment_intent,
+      provider_session_id: session.id,
+      status: 'succeeded',
+      method: 'card',
+    })
+
+    // Clear cart
+    await clearCart(userId).catch(() => {})
+
+    // Send confirmation email
+    sendOrderConfirmationEmail({
+      to: order.customer_email,
+      name: order.customer_name,
+      order: updatedOrder || order,
+    }).catch((err) => console.error('Order email failed:', err))
+
+    return { paid: true, status: 'paid', order: updatedOrder || order }
+  }
+
+  return {
+    paid: false,
+    status: session.payment_status || 'pending',
+    order,
+  }
 }
 
 /**
- * Handle Stripe webhook
+ * Handle Stripe webhook (for production)
  */
 export const handleWebhook = async (event) => {
   switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object
-      await handleCheckoutComplete(session)
+    case 'checkout.session.completed':
+      await handleCheckoutComplete(event.data.object)
       break
-    }
-    case 'payment_intent.succeeded': {
+    case 'payment_intent.payment_failed':
+      await handlePaymentFailed(event.data.object)
       break
-    }
-    case 'payment_intent.payment_failed': {
-      const intent = event.data.object
-      await handlePaymentFailed(intent)
+    case 'charge.refunded':
+      await handleRefund(event.data.object)
       break
-    }
-    case 'charge.refunded': {
-      const charge = event.data.object
-      await handleRefund(charge)
-      break
-    }
     default:
       console.log(`Unhandled event type: ${event.type}`)
   }
@@ -127,10 +179,16 @@ export const handleWebhook = async (event) => {
 const handleCheckoutComplete = async (session) => {
   const orderId = session.metadata?.order_id
   const userId = session.metadata?.user_id
-
   if (!orderId) return
 
-  // Update order
+  const { data: existingOrder } = await supabaseAdmin
+    .from('orders')
+    .select('payment_status, customer_email, customer_name')
+    .eq('id', orderId)
+    .maybeSingle()
+
+  if (existingOrder?.payment_status === 'paid') return
+
   const { data: order } = await supabaseAdmin
     .from('orders')
     .update({
@@ -144,26 +202,20 @@ const handleCheckoutComplete = async (session) => {
     .select()
     .single()
 
-  // Record payment
   await supabaseAdmin.from('payments').insert({
     order_id: orderId,
     user_id: userId,
     amount: session.amount_total / 100,
-    currency: session.currency,
+    currency: (session.currency || 'usd').toUpperCase(),
     provider: 'stripe',
     provider_payment_id: session.payment_intent,
     provider_session_id: session.id,
     status: 'succeeded',
     method: 'card',
-    metadata: { customer_email: session.customer_email },
   })
 
-  // Clear user's cart
-  if (userId) {
-    await clearCart(userId).catch(() => {})
-  }
+  if (userId) await clearCart(userId).catch(() => {})
 
-  // Send confirmation email
   if (order) {
     sendOrderConfirmationEmail({
       to: order.customer_email,
@@ -176,26 +228,20 @@ const handleCheckoutComplete = async (session) => {
 const handlePaymentFailed = async (intent) => {
   const orderId = intent.metadata?.order_id
   if (!orderId) return
-
   await supabaseAdmin
     .from('orders')
-    .update({
-      payment_status: 'failed',
-      updated_at: new Date().toISOString(),
-    })
+    .update({ payment_status: 'failed', updated_at: new Date().toISOString() })
     .eq('id', orderId)
 }
 
 const handleRefund = async (charge) => {
   const paymentIntent = charge.payment_intent
   if (!paymentIntent) return
-
   const { data: payment } = await supabaseAdmin
     .from('payments')
     .select('order_id')
     .eq('provider_payment_id', paymentIntent)
     .maybeSingle()
-
   if (payment?.order_id) {
     await supabaseAdmin
       .from('orders')
@@ -233,12 +279,8 @@ export const createRefund = async (orderId, { amount, reason }, adminId) => {
     .maybeSingle()
 
   if (!order) throw ApiError.notFound('Order not found')
-  if (order.payment_status !== 'paid') {
-    throw ApiError.badRequest('Order is not paid')
-  }
-  if (amount > order.total) {
-    throw ApiError.badRequest('Refund amount exceeds order total')
-  }
+  if (order.payment_status !== 'paid') throw ApiError.badRequest('Order is not paid')
+  if (amount > order.total) throw ApiError.badRequest('Refund exceeds total')
 
   const refund = await stripe.refunds.create({
     payment_intent: order.payment_id,
@@ -250,7 +292,6 @@ export const createRefund = async (orderId, { amount, reason }, adminId) => {
     .from('refunds')
     .insert({
       order_id: orderId,
-      payment_id: null,
       amount,
       reason,
       status: 'processed',

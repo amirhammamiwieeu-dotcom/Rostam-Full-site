@@ -7,6 +7,8 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  getMainCategories,
+  getCategoryWithChildren,
 } from '../services/category.service.js'
 
 export const list = asyncHandler(async (req, res) => {
@@ -18,6 +20,18 @@ export const list = asyncHandler(async (req, res) => {
     tree: tree === 'true',
   })
   return ApiResponse.success(res, { categories }, 'Categories retrieved')
+})
+
+// 🆕 Main categories with children
+export const mainList = asyncHandler(async (req, res) => {
+  const categories = await getMainCategories()
+  return ApiResponse.success(res, { categories }, 'Main categories retrieved')
+})
+
+// 🆕 Category with children (for /category/:slug)
+export const withChildren = asyncHandler(async (req, res) => {
+  const result = await getCategoryWithChildren(req.params.slug)
+  return ApiResponse.success(res, result, 'Category retrieved')
 })
 
 export const getBySlug = asyncHandler(async (req, res) => {

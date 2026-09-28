@@ -12,9 +12,14 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
+  toggleProductActive,
+  getAdminProducts,
   incrementProductViews,
 } from '../services/product.service.js'
 
+// ============================================================
+// Public
+// ============================================================
 export const list = asyncHandler(async (req, res) => {
   const result = await getProducts(req.query)
   return ApiResponse.success(res, result, 'Products retrieved')
@@ -63,8 +68,13 @@ export const search = asyncHandler(async (req, res) => {
 })
 
 // ============================================================
-// Admin
+// 🆕 Admin
 // ============================================================
+export const adminList = asyncHandler(async (req, res) => {
+  const result = await getAdminProducts(req.query)
+  return ApiResponse.success(res, result, 'Products retrieved')
+})
+
 export const create = asyncHandler(async (req, res) => {
   const product = await createProduct(req.body)
   return ApiResponse.created(res, { product }, 'Product created')
@@ -78,4 +88,13 @@ export const update = asyncHandler(async (req, res) => {
 export const remove = asyncHandler(async (req, res) => {
   await deleteProduct(req.params.id)
   return ApiResponse.success(res, null, 'Product deleted')
+})
+
+export const toggleActive = asyncHandler(async (req, res) => {
+  const product = await toggleProductActive(req.params.id)
+  return ApiResponse.success(
+    res,
+    { product },
+    product.is_active ? 'Product activated' : 'Product deactivated'
+  )
 })

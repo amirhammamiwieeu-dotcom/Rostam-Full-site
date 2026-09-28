@@ -3,13 +3,13 @@ import { ApiError } from '../utils/ApiError.js'
 import {
   sendWelcomeEmail,
   sendPasswordResetEmail,
-  sendVerificationEmail,
 } from './email.service.js'
 
-/**
- * Register new user with email + password
- */
+// ============================================================
+// SIGN UP
+// ============================================================
 export const registerUser = async ({ email, password, full_name, phone }) => {
+  // 1. Check existing user
   const { data: existing } = await supabaseAdmin
     .from('profiles')
     .select('id')
@@ -20,6 +20,8 @@ export const registerUser = async ({ email, password, full_name, phone }) => {
     throw ApiError.conflict('Email already registered')
   }
 
+  // 2. Create user in Supabase Auth
+  // email_confirm: false → Supabase sends confirmation email
   const { data, error } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,
@@ -31,26 +33,25 @@ export const registerUser = async ({ email, password, full_name, phone }) => {
   })
 
   if (error) {
+    console.error('❌ Signup error:', error.message)
     throw ApiError.badRequest(error.message)
   }
 
-  if (phone) {
-    await supabaseAdmin
-      .from('profiles')
-      .update({ phone })
-      .eq('id', data.user.id)
-  }
-
+  // 3. Send welcome email (non-blocking)
   sendWelcomeEmail({ to: email, name: full_name }).catch((err) =>
     console.error('Welcome email failed:', err)
   )
 
+  // 4. Note: Supabase automatically sends confirmation email
+  // via custom SMTP (Resend) — we don't need to do it manually
+
+  console.log(`✅ User registered: ${email}`)
   return data.user
 }
 
-/**
- * Login with email + password
- */
+// ============================================================
+// SIGN IN
+// ============================================================
 export const loginUser = async ({ email, password }) => {
   const { data, error } = await supabaseAdmin.auth.signInWithPassword({
     email,
@@ -58,9 +59,21 @@ export const loginUser = async ({ email, password }) => {
   })
 
   if (error) {
-    throw ApiError.unauthorized('Invalid email or password')
+    console.error('❌ Login error:', error.message)
+
+    // Check specific errors
+    if (error.message.includes('Email not confirmed')) {
+      throw ApiError.forbidden(
+        'Please confirm your email before signing in. Check your inbox.'
+      )
+    }
+    if (error.message.includes('Invalid login credentials')) {
+      throw ApiError.unauthorized('Invalid email or password')
+    }
+    throw ApiError.unauthorized(error.message)
   }
 
+  // Update last_login_at
   await supabaseAdmin
     .from('profiles')
     .update({ last_login_at: new Date().toISOString() })
@@ -72,29 +85,55 @@ export const loginUser = async ({ email, password }) => {
   }
 }
 
-/**
- * Verify token (used for Google OAuth flow from client)
- */
-export const googleAuth = async ({ access_token, id_token }) => {
-  const { data, error } = await supabaseAdmin.auth.getUser(
-    id_token || access_token
-  )
+// ============================================================
+// FORGOT PASSWORD
+// ============================================================
+export const forgotPassword = async ({ email }) => {
+  // 1. Check if user exists (don't reveal in response)
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('full_name')
+    .eq('email', email)
+    .maybeSingle()
 
-  if (error || !data.user) {
-    throw ApiError.unauthorized('Invalid token')
+  if (!profile) {
+    // Don't reveal that email doesn't exist (security)
+    console.log(`⚠️  Forgot password for non-existent email: ${email}`)
+    return { success: true }
   }
 
-  await supabaseAdmin
-    .from('profiles')
-    .update({ last_login_at: new Date().toISOString() })
-    .eq('id', data.user.id)
+  // 2. Generate reset link via Supabase
+  // Supabase will send the email via custom SMTP (Resend)
+  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    type: 'recovery',
+    email,
+    options: {
+      redirectTo: `${process.env.CLIENT_URL}/reset-password`,
+    },
+  })
 
-  return data.user
+  if (error) {
+    console.error('❌ Generate link error:', error.message)
+    throw ApiError.badRequest(error.message)
+  }
+
+  // 3. Optionally send a custom email with Resend
+  // (Supabase already sends its own via SMTP, so this is a fallback/backup)
+  if (data?.properties?.action_link) {
+    sendPasswordResetEmail({
+      to: email,
+      name: profile.full_name || 'there',
+      resetLink: data.properties.action_link,
+    }).catch((err) => console.error('Reset email failed:', err))
+  }
+
+  console.log(`✅ Password reset link sent: ${email}`)
+  return { success: true }
 }
 
-/**
- * Get user profile
- */
+// ============================================================
+// GET PROFILE
+// ============================================================
 export const getUserProfile = async (userId) => {
   const { data, error } = await supabaseAdmin
     .from('profiles')
@@ -102,134 +141,79 @@ export const getUserProfile = async (userId) => {
     .eq('id', userId)
     .single()
 
-  if (error) {
-    throw ApiError.notFound('Profile not found')
-  }
-
+  if (error) throw ApiError.notFound('Profile not found')
   return data
 }
 
-/**
- * Update user profile
- */
+// ============================================================
+// UPDATE PROFILE
+// ============================================================
 export const updateUserProfile = async (userId, updates) => {
+  const allowed = ['full_name', 'phone', 'username', 'bio', 'avatar_url']
+  const clean = {}
+  allowed.forEach((k) => {
+    if (updates[k] !== undefined) clean[k] = updates[k]
+  })
+
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString(),
-    })
+    .update({ ...clean, updated_at: new Date().toISOString() })
     .eq('id', userId)
     .select()
     .single()
 
-  if (error) {
-    throw ApiError.badRequest(error.message)
-  }
-
+  if (error) throw ApiError.badRequest(error.message)
   return data
 }
 
-/**
- * Change password (user knows current password)
- */
+// ============================================================
+// CHANGE PASSWORD
+// ============================================================
 export const changePassword = async (userId, { current_password, new_password }) => {
   const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId)
-  if (!user?.user?.email) {
-    throw ApiError.notFound('User not found')
-  }
+  if (!user?.user?.email) throw ApiError.notFound('User not found')
 
+  // Verify current password
   const { error: signInError } = await supabaseAdmin.auth.signInWithPassword({
     email: user.user.email,
     password: current_password,
   })
 
-  if (signInError) {
-    throw ApiError.unauthorized('Current password is incorrect')
-  }
+  if (signInError) throw ApiError.unauthorized('Current password is incorrect')
 
+  // Update password
   const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
     password: new_password,
   })
 
-  if (error) {
-    throw ApiError.badRequest(error.message)
-  }
-
+  if (error) throw ApiError.badRequest(error.message)
   return { success: true }
 }
 
-/**
- * Send password reset email
- */
-export const forgotPassword = async ({ email }) => {
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('full_name')
-    .eq('email', email)
-    .maybeSingle()
-
-  // Don't reveal if email exists (security)
-  if (profile) {
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: {
-        redirectTo: `${process.env.CLIENT_URL}/reset-password`,
-      },
-    })
-
-    if (!error && data?.properties?.action_link) {
-      await sendPasswordResetEmail({
-        to: email,
-        name: profile.full_name || 'there',
-        resetLink: data.properties.action_link,
-      }).catch((err) => console.error('Reset email failed:', err))
-    }
-  }
-
-  return { success: true }
-}
-
-/**
- * Send email verification link
- */
-export const sendEmailVerification = async (userId) => {
-  const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId)
-  if (!user?.user?.email) {
-    throw ApiError.notFound('User not found')
-  }
-
-  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+// ============================================================
+// RESEND CONFIRMATION EMAIL
+// ============================================================
+export const resendConfirmation = async (email) => {
+  const { error } = await supabaseAdmin.auth.resend({
     type: 'signup',
-    email: user.user.email,
+    email,
     options: {
-      redirectTo: `${process.env.CLIENT_URL}/auth/callback`,
+      emailRedirectTo: `${process.env.CLIENT_URL}/auth/callback`,
     },
   })
 
   if (error) {
+    console.error('❌ Resend error:', error.message)
     throw ApiError.badRequest(error.message)
   }
 
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('full_name')
-    .eq('id', userId)
-    .single()
-
-  await sendVerificationEmail({
-    to: user.user.email,
-    name: profile?.full_name || 'there',
-    verifyLink: data.properties.action_link,
-  })
-
+  console.log(`📧 Confirmation email resent: ${email}`)
   return { success: true }
 }
 
-/**
- * Logout (client handles session revocation)
- */
+// ============================================================
+// LOGOUT
+// ============================================================
 export const logoutUser = async () => {
   return { success: true }
 }

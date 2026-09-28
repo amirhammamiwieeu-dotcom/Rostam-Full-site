@@ -8,9 +8,11 @@ import {
   newArrivals,
   bestSellers,
   search,
+  adminList,
   create,
   update,
   remove,
+  toggleActive,
 } from '../controllers/product.controller.js'
 import { requireAuth } from '../middleware/auth.js'
 import { requireAdmin } from '../middleware/admin.js'
@@ -32,14 +34,20 @@ router.get('/new', newArrivals)
 router.get('/best-sellers', bestSellers)
 router.get('/search', search)
 router.get('/slug/:slug', getBySlug)
-router.get('/:id', getOne)
-router.get('/:id/related', related)
 
 // ============================================================
-// Admin routes
+// Admin routes (must be before /:id)
 // ============================================================
+router.get('/admin/list', requireAuth, requireAdmin, adminList)
 router.post('/', requireAuth, requireAdmin, validateBody(createProductSchema), create)
+
+// ============================================================
+// Dynamic routes (must be after specific routes)
+// ============================================================
+router.get('/:id', getOne)
+router.get('/:id/related', related)
 router.put('/:id', requireAuth, requireAdmin, validateBody(updateProductSchema), update)
 router.delete('/:id', requireAuth, requireAdmin, remove)
+router.patch('/:id/toggle-active', requireAuth, requireAdmin, toggleActive)
 
 export default router

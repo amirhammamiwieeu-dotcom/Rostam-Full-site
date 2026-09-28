@@ -29,3 +29,10 @@ export const recommendSchema = z.object({
   product_id: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(20).default(6),
 })
+
+export const compareSchema = z.object({
+  product_ids: z
+    .array(z.string().uuid())
+    .min(2, 'At least 2 products required')
+    .max(4, 'Maximum 4 products'),
+})

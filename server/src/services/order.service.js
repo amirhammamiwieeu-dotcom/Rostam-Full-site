@@ -44,7 +44,19 @@ export const createOrder = async (userId, data) => {
   // 6. Generate order number
   const orderNumber = generateOrderNumber()
 
-  // 7. Create order
+  // 7. Extract email — this is critical for Stripe
+  const customerEmail =
+    shipping_address.email ||
+    data.customer_email ||
+    data.email ||
+    null
+
+  const customerPhone = shipping_address.phone || data.customer_phone || null
+  const customerName = shipping_address.full_name || data.customer_name || null
+
+  console.log('📧 Creating order with email:', customerEmail)
+
+  // 8. Create order
   const { data: order, error } = await supabaseAdmin
     .from('orders')
     .insert({
@@ -53,9 +65,9 @@ export const createOrder = async (userId, data) => {
       status: 'pending',
       payment_status: 'pending',
       fulfillment_status: 'unfulfilled',
-      customer_email: shipping_address.email,
-      customer_name: shipping_address.full_name,
-      customer_phone: shipping_address.phone,
+      customer_email: customerEmail,
+      customer_name: customerName,
+      customer_phone: customerPhone,
       shipping_address,
       billing_address: billing_address || shipping_address,
       shipping_method,
@@ -73,7 +85,7 @@ export const createOrder = async (userId, data) => {
 
   if (error) throw ApiError.badRequest(error.message)
 
-  // 8. Create order items (snapshot of products)
+  // 9. Create order items (snapshot of products)
   const orderItems = cart.items.map((item) => ({
     order_id: order.id,
     product_id: item.product.id,
@@ -97,12 +109,12 @@ export const createOrder = async (userId, data) => {
     throw ApiError.badRequest(itemsError.message)
   }
 
-  // 9. Record coupon usage
+  // 10. Record coupon usage
   if (couponId) {
     await recordCouponUsage(couponId, userId, order.id, discount)
   }
 
-  // 10. Return full order
+  // 11. Return full order
   return getOrderById(order.id, userId)
 }
 

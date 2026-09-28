@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Backups
+*.backup-*
+*.backup
+
+# Test files
+server/test-email.js
+server/test-resend.js
+server/test-*.js
+
+# Binaries
+*.tgz
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/

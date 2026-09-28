@@ -62,7 +62,6 @@ JSON:`
   const result = await geminiModel.generateContent(prompt)
   let text = result.response.text().trim()
 
-  // Strip markdown fences if present
   text = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim()
 
   try {
@@ -108,10 +107,9 @@ Keep replies under 3 short paragraphs.`
 }
 
 // ============================================================
-// Recommendations (hybrid: AI + DB)
+// Recommendations
 // ============================================================
 export const recommendProducts = async ({ product_id, limit = 6 }) => {
-  // If product_id given, find similar via AI signal + same category
   if (product_id) {
     const { data: product } = await supabaseAdmin
       .from('products')
@@ -135,7 +133,6 @@ export const recommendProducts = async ({ product_id, limit = 6 }) => {
     return { products: similar || [], basis: 'similar' }
   }
 
-  // Otherwise: top rated + featured
   const { data: top } = await supabaseAdmin
     .from('products')
     .select(
@@ -150,7 +147,7 @@ export const recommendProducts = async ({ product_id, limit = 6 }) => {
 }
 
 // ============================================================
-// Bulk translate (optional utility)
+// Translate
 // ============================================================
 export const translateText = async ({ text, targetLanguage }) => {
   const prompt = `Translate the following text to ${targetLanguage}. Return ONLY the translation, no extra text.
@@ -160,4 +157,135 @@ ${text}`
 
   const result = await geminiModel.generateContent(prompt)
   return { translation: result.response.text().trim() }
+}
+
+// ============================================================
+// 🤖 Compare Products with Gemini (جدید!)
+// ============================================================
+export const compareProducts = async ({ product_ids }) => {
+  if (!product_ids || product_ids.length < 2) {
+    throw ApiError.badRequest('At least 2 products required for comparison')
+  }
+  if (product_ids.length > 4) {
+    throw ApiError.badRequest('Maximum 4 products for comparison')
+  }
+
+  // Fetch products with full details
+  const { data: products, error } = await supabaseAdmin
+    .from('products')
+    .select(`
+      id, title, price, old_price, discount, rating, num_reviews,
+      stock, features, specifications, short_description,
+      brand:brands(id, name)
+    `)
+    .in('id', product_ids)
+
+  if (error) throw ApiError.badRequest(error.message)
+  if (!products || products.length < 2) {
+    throw ApiError.badRequest('Could not find enough products')
+  }
+
+  // Build a detailed product description for Gemini
+  const productsText = products
+    .map((p, i) => {
+      const specs = p.specifications && Object.keys(p.specifications).length > 0
+        ? Object.entries(p.specifications)
+            .map(([k, v]) => `    - ${k}: ${v}`)
+            .join('\n')
+        : '    (none provided)'
+
+      const features = p.features && p.features.length > 0
+        ? p.features.map((f) => `    - ${f}`).join('\n')
+        : '    (none provided)'
+
+      return `Product ${i + 1}:
+  Title: ${p.title}
+  Brand: ${p.brand?.name || 'Unknown'}
+  Price: $${p.price}${p.old_price ? ` (was $${p.old_price}, ${p.discount}% off)` : ''}
+  Rating: ${p.rating || 0}/5 (${p.num_reviews || 0} reviews)
+  Stock: ${p.stock > 0 ? 'In stock' : 'Out of stock'}
+  Features:
+${features}
+  Specifications:
+${specs}
+${p.short_description ? `  Description: ${p.short_description}` : ''}`
+    })
+    .join('\n\n')
+
+  const prompt = `You are an expert product comparison assistant for an e-commerce store.
+A customer is comparing the following products. Analyze them and provide a helpful comparison.
+
+${productsText}
+
+Please provide a comprehensive comparison in this EXACT JSON format (no markdown, no extra text, valid JSON only):
+
+{
+  "summary": "A 2-3 sentence overall summary of the comparison",
+  "winner": {
+    "product_index": 0,
+    "reason": "Why this product wins overall (1-2 sentences)"
+  },
+  "best_for": {
+    "budget": {
+      "product_index": 0,
+      "reason": "Best for budget-conscious buyers"
+    },
+    "performance": {
+      "product_index": 0,
+      "reason": "Best for performance/features"
+    },
+    "value": {
+      "product_index": 0,
+      "reason": "Best overall value"
+    }
+  },
+  "pros_cons": [
+    {
+      "product_index": 0,
+      "pros": ["pro1", "pro2", "pro3"],
+      "cons": ["con1", "con2"]
+    }
+  ],
+  "key_differences": [
+    "Difference 1 in plain language",
+    "Difference 2 in plain language",
+    "Difference 3 in plain language"
+  ],
+  "recommendation": "Final recommendation paragraph (2-3 sentences) telling the customer which one to choose and why, considering common use cases"
+}
+
+IMPORTANT RULES:
+- product_index refers to the position in the list above (0-indexed)
+- Each pros/cons array should have 2-4 items
+- Each item should be a SHORT phrase (5-10 words)
+- Be objective and honest — don't favor any brand
+- If a product is clearly better, say so in the "winner" field
+- Base analysis on the actual data provided, don't make up specs
+
+JSON:`
+
+  const result = await geminiModel.generateContent(prompt)
+  let text = result.response.text().trim()
+
+  // Clean markdown fences if present
+  text = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim()
+
+  try {
+    const analysis = JSON.parse(text)
+
+    // Attach product info to the response for convenience
+    return {
+      analysis,
+      products: products.map((p) => ({
+        id: p.id,
+        title: p.title,
+        price: p.price,
+        rating: p.rating,
+        thumbnail: null,
+      })),
+    }
+  } catch (err) {
+    console.error('❌ Gemini compare parse failed:', text)
+    throw ApiError.internal('Failed to parse AI comparison')
+  }
 }
