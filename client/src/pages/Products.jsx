@@ -35,7 +35,7 @@ export default function Products() {
       .catch((err) => {
         if (cancelled) return
         console.error('❌ Fetch failed:', err)
-        toast.error(`Failed: ${err.message} (${err.status || 'network'})`)
+        toast.error(`${err.message} | ${import.meta.env.VITE_API_URL}`, { duration: 15000 })
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
