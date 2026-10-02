@@ -35,7 +35,7 @@ export default function Products() {
       .catch((err) => {
         if (cancelled) return
         console.error('❌ Fetch failed:', err)
-        toast.error('Failed to load products')
+        toast.error(`Failed: ${err.message} (${err.status || 'network'})`)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
