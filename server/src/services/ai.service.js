@@ -3,6 +3,38 @@ import { supabaseAdmin } from '../config/supabase.js'
 import { ApiError } from '../utils/ApiError.js'
 
 // ============================================================
+// Retry helper for temporary Gemini errors (503 overloaded, 429 rate limit)
+// ============================================================
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const generateWithRetry = async (input, maxRetries = 3) => {
+  let lastError
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await geminiModel.generateContent(input)
+    } catch (err) {
+      lastError = err
+      const msg = String(err?.message || '')
+      const retryable =
+        err?.status === 503 ||
+        err?.status === 429 ||
+        msg.includes('503') ||
+        msg.includes('429') ||
+        msg.toLowerCase().includes('overloaded') ||
+        msg.toLowerCase().includes('high demand')
+
+      if (!retryable || attempt === maxRetries) break
+
+      // 1s, 2s, 4s
+      await sleep(1000 * 2 ** attempt)
+    }
+  }
+
+  throw lastError
+}
+
+// ============================================================
 // Product description generator
 // ============================================================
 export const generateDescription = async ({ title, features, category, brand, tone }) => {
@@ -30,7 +62,7 @@ Requirements:
 
 Description:`
 
-  const result = await geminiModel.generateContent(prompt)
+  const result = await generateWithRetry(prompt)
   const text = result.response.text().trim()
 
   return { description: text }
@@ -59,7 +91,7 @@ Return ONLY valid JSON in this exact shape (no markdown, no extra text):
 
 JSON:`
 
-  const result = await geminiModel.generateContent(prompt)
+  const result = await generateWithRetry(prompt)
   let text = result.response.text().trim()
 
   text = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim()
@@ -100,7 +132,7 @@ Keep replies under 3 short paragraphs.`
     { role: 'user', parts: [{ text: message }] },
   ]
 
-  const result = await geminiModel.generateContent({ contents })
+  const result = await generateWithRetry({ contents })
   const reply = result.response.text().trim()
 
   return { reply }
@@ -155,12 +187,12 @@ export const translateText = async ({ text, targetLanguage }) => {
 Text:
 ${text}`
 
-  const result = await geminiModel.generateContent(prompt)
+  const result = await generateWithRetry(prompt)
   return { translation: result.response.text().trim() }
 }
 
 // ============================================================
-// 🤖 Compare Products with Gemini (جدید!)
+// 🤖 Compare Products with Gemini
 // ============================================================
 export const compareProducts = async ({ product_ids }) => {
   if (!product_ids || product_ids.length < 2) {
@@ -264,7 +296,16 @@ IMPORTANT RULES:
 
 JSON:`
 
-  const result = await geminiModel.generateContent(prompt)
+  let result
+  try {
+    result = await generateWithRetry(prompt)
+  } catch (err) {
+    console.error('❌ Gemini compare failed:', err.message)
+    throw ApiError.badRequest(
+      'The AI service is busy right now. Please try again in a minute.'
+    )
+  }
+
   let text = result.response.text().trim()
 
   // Clean markdown fences if present
