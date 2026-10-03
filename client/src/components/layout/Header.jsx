@@ -21,14 +21,12 @@ export default function Header({ onOpenCart, onOpenMega }) {
   const { count: wishCount } = useWishlist()
   const { isDark, toggleTheme } = useTheme()
 
-  // Load main categories
   useEffect(() => {
     api.get('/categories/main')
       .then((res) => setCategories(res.data.categories || []))
       .catch(() => setCategories([]))
   }, [])
 
-  // Live search
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < 2) {
       setSuggestions([])
@@ -49,10 +47,8 @@ export default function Header({ onOpenCart, onOpenMega }) {
   }
 
   return (
-    <header className="bg-secondary text-white sticky top-0 z-50 shadow-lg w-full max-w-full overflow-x-hidden">
-      {/* ===== Top Row ===== */}
+    <header className="bg-secondary text-white sticky top-0 z-40 shadow-lg w-full max-w-full overflow-x-hidden">
       <div className="container-page py-1.5 sm:py-2 flex items-center gap-1 sm:gap-3 w-full">
-        {/* Mobile menu button */}
         <button
           onClick={onOpenMega}
           className="lg:hidden p-1 sm:p-2 hover:bg-secondary-light rounded-lg transition shrink-0"
@@ -61,7 +57,6 @@ export default function Header({ onOpenCart, onOpenMega }) {
           <Menu className="h-5 w-5" />
         </button>
 
-        {/* Logo */}
         <Link
           to="/"
           className="flex items-center gap-1 sm:gap-2 text-base sm:text-xl md:text-2xl font-black whitespace-nowrap shrink-0"
@@ -71,7 +66,6 @@ export default function Header({ onOpenCart, onOpenMega }) {
           <span className="text-primary">Hub</span>
         </Link>
 
-        {/* Deliver to - desktop only */}
         <div className="hidden lg:flex items-center gap-2 text-sm px-3 py-1 hover:border hover:border-white rounded transition cursor-pointer shrink-0">
           <MapPin className="h-4 w-4 text-primary" />
           <div>
@@ -80,7 +74,6 @@ export default function Header({ onOpenCart, onOpenMega }) {
           </div>
         </div>
 
-        {/* Search - desktop */}
         <div className="hidden md:block flex-1 relative min-w-0 max-w-3xl">
           <form onSubmit={handleSearch} className="flex h-9 sm:h-10 rounded-lg overflow-hidden bg-white">
             <input
@@ -119,9 +112,7 @@ export default function Header({ onOpenCart, onOpenMega }) {
           )}
         </div>
 
-        {/* ===== Right icons ===== */}
         <div className="flex items-center gap-0 sm:gap-1 ml-auto shrink-0 -mr-1 sm:-mr-2">
-          {/* Mobile search toggle */}
           <button
             onClick={() => setMobileSearchOpen((v) => !v)}
             className="md:hidden p-1 sm:p-1.5 hover:bg-secondary-light rounded-lg transition shrink-0"
@@ -168,7 +159,6 @@ export default function Header({ onOpenCart, onOpenMega }) {
         </div>
       </div>
 
-      {/* ===== Mobile search bar (toggle) ===== */}
       {mobileSearchOpen && (
         <div className="md:hidden bg-secondary-light border-t border-secondary px-3 py-2 w-full">
           <div className="relative">
@@ -213,7 +203,6 @@ export default function Header({ onOpenCart, onOpenMega }) {
         </div>
       )}
 
-      {/* ===== Main Categories Nav ===== */}
       <div className="bg-secondary-light w-full overflow-x-hidden">
         <div className="container-page py-1.5 sm:py-2 flex items-center gap-1 text-sm overflow-x-auto scrollbar-hide w-full">
           <Link
