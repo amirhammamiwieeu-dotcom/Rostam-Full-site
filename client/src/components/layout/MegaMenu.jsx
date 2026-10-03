@@ -15,21 +15,16 @@ const categories = [
 ]
 
 export default function MegaMenu({ open, onClose }) {
+  // وقتی بسته‌ست، هیچی رندر نکن → مشکل اسکرول افقی کاملاً حل می‌شه
+  if (!open) return null
+
   return (
     <>
-      {open && (
-        <div
-          className="fixed inset-0 bg-black/60 z-40"
-          onClick={onClose}
-        />
-      )}
-      <aside
-        className={`fixed top-0 left-0 h-full w-full max-w-sm bg-white dark:bg-secondary-light shadow-2xl z-50 transition-transform duration-300 ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        }`}
-        style={{ visibility: open ? 'visible' : 'hidden' }}
-        aria-hidden={!open}
-      >
+      <div
+        className="fixed inset-0 bg-black/60 z-40"
+        onClick={onClose}
+      />
+      <aside className="fixed top-0 left-0 h-full w-full max-w-sm bg-white dark:bg-secondary-light shadow-2xl z-50">
         <div className="bg-secondary text-white p-5 flex items-center justify-between">
           <h3 className="text-lg font-bold">Shop by Department</h3>
           <button
