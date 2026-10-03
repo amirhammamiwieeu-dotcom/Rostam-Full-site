@@ -14,5 +14,62 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- 🔍 DEBUG: پیدا کردن المان‌های بیرون‌زده -->
+    <script>
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          const vw = document.documentElement.clientWidth;
+          const bad = [];
+          document.querySelectorAll('*').forEach(el => {
+            const rect = el.getBoundingClientRect();
+            if (rect.right > vw + 1) {
+              const cls = (el.className || '').toString().slice(0, 100);
+              bad.push(
+                '🏷️ ' + el.tagName +
+                '\n📦 ' + (cls || '(no class)') +
+                '\n➡️ right: ' + Math.round(rect.right) +
+                ' | عرض: ' + Math.round(rect.width) +
+                ' | صفحه: ' + vw
+              );
+            }
+          });
+
+          const box = document.createElement('div');
+          box.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            max-height: 60vh;
+            overflow: auto;
+            background: #000;
+            color: #0f0;
+            padding: 12px;
+            font-size: 11px;
+            font-family: monospace;
+            z-index: 999999;
+            white-space: pre-wrap;
+            border-bottom: 3px solid #f00;
+          `;
+
+          if (bad.length > 0) {
+            box.textContent =
+              '🔴 ' + bad.length + ' المان بیرون‌زده پیدا شد\n' +
+              '📏 عرض صفحه: ' + vw + 'px\n' +
+              '━━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+              bad.join('\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n') +
+              '\n\n👆 روی این باکس بزن تا بسته شه';
+          } else {
+            box.style.background = '#0a0';
+            box.style.color = '#fff';
+            box.textContent = '✅ هیچ المان بیرون‌زده‌ای پیدا نشد!\nعرض صفحه: ' + vw + 'px\n👆 بزن تا بسته شه';
+          }
+
+          box.onclick = () => box.remove();
+          document.body.appendChild(box);
+        }, 2500);
+      });
+    </script>
   </body>
 </html>
