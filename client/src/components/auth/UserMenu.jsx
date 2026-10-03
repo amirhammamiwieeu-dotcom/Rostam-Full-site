@@ -74,7 +74,7 @@ export default function UserMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-64 max-w-[90vw] bg-white dark:bg-secondary-light rounded-xl shadow-2xl overflow-hidden z-[100]">
+        <div className="absolute right-0 top-full mt-2 w-64 max-w-[90vw] bg-white dark:bg-secondary-light rounded-xl shadow-2xl overflow-hidden z-[9999]">
           <div className="p-4 bg-gray-50 dark:bg-secondary border-b border-gray-200 dark:border-gray-700">
             <p className="font-semibold text-sm text-secondary dark:text-white truncate">
               {profile?.full_name || 'User'}
