@@ -19,14 +19,16 @@ export default function UserMenu() {
     navigate('/')
   }
 
+  // ====== وقتی کاربر لاگین نیست ======
   if (!user) {
     return (
       <Link
         to="/login"
-        className="hidden sm:flex items-center gap-2 px-3 py-1 hover:border hover:border-white rounded transition"
+        className="flex items-center gap-1 sm:gap-2 px-1 sm:px-3 py-1 hover:border hover:border-white rounded transition shrink-0"
+        aria-label="Sign in"
       >
-        <User className="h-5 w-5" />
-        <div className="text-xs">
+        <User className="h-4 w-4 sm:h-5 sm:w-5" />
+        <div className="text-xs hidden lg:block">
           <div className="text-gray-400">Sign in</div>
           <div className="font-semibold">Account</div>
         </div>
@@ -34,6 +36,7 @@ export default function UserMenu() {
     )
   }
 
+  // ====== وقتی کاربر لاگین هست ======
   const initials = (profile?.full_name || user.email || 'U')
     .split(' ')
     .map((n) => n[0])
@@ -53,24 +56,27 @@ export default function UserMenu() {
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative shrink-0" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 px-3 py-1 hover:border hover:border-white rounded transition"
+        className="flex items-center gap-1 sm:gap-2 px-1 sm:px-3 py-1 hover:border hover:border-white rounded transition shrink-0"
+        aria-label="Account menu"
       >
-        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-secondary font-bold text-sm">
+        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary flex items-center justify-center text-secondary font-bold text-xs sm:text-sm">
           {initials}
         </div>
-        <div className="text-xs hidden sm:block">
+        <div className="text-xs hidden lg:block">
           <div className="text-gray-400">Hello,</div>
-          <div className="font-semibold">{profile?.full_name?.split(' ')[0] || 'Account'}</div>
+          <div className="font-semibold">
+            {profile?.full_name?.split(' ')[0] || 'Account'}
+          </div>
         </div>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-secondary-light rounded-xl shadow-2xl overflow-hidden z-50">
+        <div className="absolute right-0 top-full mt-2 w-64 max-w-[90vw] bg-white dark:bg-secondary-light rounded-xl shadow-2xl overflow-hidden z-50">
           <div className="p-4 bg-gray-50 dark:bg-secondary border-b border-gray-200 dark:border-gray-700">
-            <p className="font-semibold text-sm text-secondary dark:text-white">
+            <p className="font-semibold text-sm text-secondary dark:text-white truncate">
               {profile?.full_name || 'User'}
             </p>
             <p className="text-xs text-gray-500 truncate">{user.email}</p>
