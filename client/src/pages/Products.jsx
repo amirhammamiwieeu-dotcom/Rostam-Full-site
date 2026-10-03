@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { SlidersHorizontal } from 'lucide-react'
+import { useSearchParams, Link } from 'react-router-dom'
+import { SlidersHorizontal, Sparkles, ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import ProductGrid from '../components/product/ProductGrid'
 import ProductFilters from '../components/product/ProductFilters'
@@ -21,8 +21,6 @@ export default function Products() {
 
   useEffect(() => {
     const query = buildQueryString(filters)
-    console.log('🔍 Fetching products with filters:', filters)
-
     let cancelled = false
     setLoading(true)
 
@@ -70,15 +68,25 @@ export default function Products() {
 
   return (
     <div className="container-page py-6">
-      <div className="mb-5">
-        <h1 className="text-2xl font-bold text-secondary dark:text-white mb-1 capitalize">
-          {pageTitle}
-        </h1>
-        <p className="text-sm text-gray-500">
-          {loading
-            ? 'Loading...'
-            : `${pagination.total.toLocaleString()} products found`}
-        </p>
+      <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-secondary dark:text-white mb-1 capitalize">
+            {pageTitle}
+          </h1>
+          <p className="text-sm text-gray-500">
+            {loading
+              ? 'Loading...'
+              : `${pagination.total.toLocaleString()} products found`}
+          </p>
+        </div>
+        <Link
+          to="/compare"
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold px-4 py-2.5 rounded-lg transition shadow-lg hover:shadow-xl text-sm whitespace-nowrap shrink-0"
+        >
+          <Sparkles className="h-4 w-4" />
+          Compare with Gemini
+          <ArrowRight className="h-4 w-4" />
+        </Link>
       </div>
 
       <div className="grid lg:grid-cols-[260px_1fr] gap-6">
