@@ -47,7 +47,7 @@ export default function Header({ onOpenCart, onOpenMega }) {
   }
 
   return (
-    <header className="bg-secondary text-white sticky top-0 z-40 shadow-lg w-full max-w-full overflow-x-hidden">
+    <header className="bg-secondary text-white sticky top-0 z-40 shadow-lg w-full max-w-full">
       <div className="container-page py-1.5 sm:py-2 flex items-center gap-1 sm:gap-3 w-full">
         <button
           onClick={onOpenMega}
